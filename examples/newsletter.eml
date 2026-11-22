@@ -1,0 +1,14 @@
+From: Python Weekly <rahul@pythonweekly.com>
+To: you@example.com
+Subject: Python Weekly - Issue 690
+Date: Thu, 20 Nov 2026 18:00:00 +0000
+Message-ID: <c3@pythonweekly.com>
+List-Unsubscribe: <mailto:unsubscribe@pythonweekly.com>
+Precedence: bulk
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><head><style>p{color:red}</style></head><body><h1>Python Weekly</h1>
+<p>Welcome to issue 690. Articles, tutorials and talks: structured concurrency, packaging with uv, and profiling memory.</p>
+<p><a href="https://pythonweekly.com/archive/690">Read online</a> | <a href="https://pythonweekly.com/unsubscribe">Unsubscribe</a></p>
+</body></html>
