@@ -2,7 +2,7 @@ From: "PayPal Security" <service@paypa1-support.com>
 Reply-To: help@secure-mailbox.ru
 To: you@example.com
 Subject: Your account has been limited - verify within 24 hours
-Date: Sun, 23 Nov 2026 09:12:00 +0530
+Date: Mon, 23 Nov 2026 09:12:00 +0530
 Message-ID: <a1@paypa1-support.com>
 Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=paypa1-support.com; dkim=none; dmarc=fail
 MIME-Version: 1.0
