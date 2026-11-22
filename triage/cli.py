@@ -183,7 +183,15 @@ def cmd_apply(args, out) -> int:
                 if action == "flag":
                     client.flag(m["uid"])
                 elif action.startswith("move:"):
-                    client.move(m["uid"], action.split(":", 1)[1])
+                    target = action.split(":", 1)[1]
+                    step = f"copied:{target}"
+                    key = (m["mailbox"], m["uidvalidity"], m["uid"])
+                    client.move(
+                        m["uid"],
+                        target,
+                        already_copied=store.has_step(*key, step),
+                        on_copied=lambda key=key, step=step: store.record_step(*key, step),
+                    )
             store.mark_applied(m["mailbox"], m["uidvalidity"], m["uid"], p, dry_run=False)
     finally:
         client.logout()

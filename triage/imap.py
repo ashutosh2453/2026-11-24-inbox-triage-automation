@@ -14,7 +14,7 @@ from __future__ import annotations
 import imaplib
 import re
 import ssl
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 _UIDVALIDITY = re.compile(rb"UIDVALIDITY (\d+)")
 _SAFE_MAILBOX = re.compile(r"^[\w ./&+-]{1,100}$")
@@ -100,7 +100,17 @@ class ImapClient:
             raise ValueError(f"unsupported flag: {flag!r}")
         self._ok(*self.conn.uid("STORE", str(uid), "+FLAGS", f"({flag})"), what=f"STORE {uid}")
 
-    def move(self, uid: int, target: str) -> None:
+    def move(
+        self,
+        uid: int,
+        target: str,
+        *,
+        already_copied: bool = False,
+        on_copied: Callable[[], None] | None = None,
+    ) -> None:
+        """Move one message. ``UID MOVE`` is atomic; the COPY fallback is made retry-safe by
+        the caller: ``on_copied`` records that the copy happened, and a retry passes
+        ``already_copied=True`` so the message is not copied a second time."""
         self.ensure_mailbox(target)
         caps = self.capabilities
         if "MOVE" in caps:
@@ -108,7 +118,10 @@ class ImapClient:
             return
         if "UIDPLUS" not in caps:
             raise ImapError("server supports neither MOVE nor UIDPLUS; refusing an unsafe EXPUNGE")
-        self._ok(*self.conn.uid("COPY", str(uid), quote_mailbox(target)), what=f"COPY {uid}")
+        if not already_copied:
+            self._ok(*self.conn.uid("COPY", str(uid), quote_mailbox(target)), what=f"COPY {uid}")
+            if on_copied:
+                on_copied()
         self._ok(*self.conn.uid("STORE", str(uid), "+FLAGS", "(\\Deleted)"), what=f"STORE {uid}")
         self._ok(*self.conn.uid("EXPUNGE", str(uid)), what=f"UID EXPUNGE {uid}")
 

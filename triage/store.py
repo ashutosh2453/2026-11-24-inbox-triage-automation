@@ -143,6 +143,21 @@ class Store:
                     (json.dumps(actions), mailbox, uidvalidity, uid),
                 )
 
+    def record_step(self, mailbox: str, uidvalidity: int, uid: int, step: str) -> None:
+        """Durably note a partial IMAP step (e.g. 'copied:Later') so a retry can skip it."""
+        with self.db:
+            self.db.execute(
+                "INSERT INTO audit(at, mailbox, uid, action, dry_run) VALUES (?, ?, ?, ?, 0)",
+                (_now(), f"{mailbox}#{uidvalidity}", uid, step),
+            )
+
+    def has_step(self, mailbox: str, uidvalidity: int, uid: int, step: str) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM audit WHERE mailbox = ? AND uid = ? AND action = ? AND dry_run = 0 LIMIT 1",
+            (f"{mailbox}#{uidvalidity}", uid, step),
+        ).fetchone()
+        return row is not None
+
     def audit(self) -> list[dict[str, Any]]:
         return [dict(r) for r in self.db.execute("SELECT * FROM audit ORDER BY id")]
 

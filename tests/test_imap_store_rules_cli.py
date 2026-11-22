@@ -227,3 +227,16 @@ def test_cli_bad_rules_file_exits_1(tmp_path):
     rules = tmp_path / "r.yaml"
     rules.write_text("rules: []\n", encoding="utf-8")
     assert run(["--db", str(tmp_path / "x.db"), "apply", "--host", "h", "--user", "u", "--rules", str(rules)])[0] == 1
+
+
+def test_copy_fallback_is_retry_safe_after_a_dropped_connection(tmp_path, monkeypatch):
+    db = str(tmp_path / "retry.db")
+    fake = FakeIMAP([RAW["newsletter"]], caps="IMAP4rev1 UIDPLUS")
+    assert run(["--db", db, "sync", "--host", "h", "--user", "u"], monkeypatch, fake)[0] == 0
+    fake.fail_once = {"EXPUNGE"}  # COPY succeeds, then the connection drops
+    assert run(["--db", db, "apply", "--host", "h", "--user", "u", "--apply"], monkeypatch, fake)[0] == 1
+    assert len(fake.boxes["Later"]) == 1 and len(fake.boxes["INBOX"]) == 1
+    assert run(["--db", db, "apply", "--host", "h", "--user", "u", "--apply"], monkeypatch, fake)[0] == 0
+    assert len(fake.boxes["Later"]) == 1, "retry must not copy the message a second time"
+    assert fake.boxes["INBOX"] == {}
+    assert sum(1 for entry in fake.log if entry[0] == "COPY") == 1

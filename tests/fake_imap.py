@@ -12,6 +12,7 @@ class FakeIMAP:
         self.selected = None
         self.readonly = None
         self.log: list[tuple] = []
+        self.fail_once: set[str] = set()  # commands that raise a connection error the first time
         for raw in messages:
             self.deliver(raw)
 
@@ -52,6 +53,9 @@ class FakeIMAP:
     def uid(self, command, *args):
         box = self.boxes[self.selected]
         self.log.append((command, *args))
+        if command in self.fail_once:
+            self.fail_once.discard(command)
+            raise OSError("connection reset by peer")
         if command == "SEARCH":
             start = int(args[1].split()[1].split(":")[0])
             found = [u for u in box if u >= start] or ([max(box)] if box else [])  # n:* quirk
