@@ -48,7 +48,9 @@ def triage_many(
         verdict = assess(mail)
         received = _received(mail)
         items = action_mod.extract(mail.text, received or today)
-        ref = today or (received.date() if received else date.today())
+        # Deadlines are *resolved* against the message date ("tomorrow" = day after it was sent)
+        # but *compared* with the triage date, so an old "by tomorrow" shows up as overdue.
+        ref = today or date.today()
         prio = score(mail, pred.category, items, verdict.score, profile, ref)
         out.append(
             Triage(

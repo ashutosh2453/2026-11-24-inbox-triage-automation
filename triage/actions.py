@@ -34,6 +34,7 @@ REQUEST = re.compile(
     re.I,
 )
 NOT_FOR_ME = re.compile(r"\b(please do not reply|please reply to this email directly|no action is needed)\b", re.I)
+DEADLINE_CUE = re.compile(r"\b(by|before|due|deadline|until|no later than|needs? (it|this|them))\b", re.I)
 _SENTENCES = re.compile(r"(?<=[.!?])\s+|\n+")
 
 
@@ -96,16 +97,18 @@ def resolve_deadline(sentence: str, base: date) -> tuple[date | None, str]:
 
 def extract(text: str, received: datetime | date | None = None) -> list[ActionItem]:
     base = received.date() if isinstance(received, datetime) else (received or date.today())
+    sentences = [" ".join(raw.split()) for raw in _SENTENCES.split(text)]
     items: list[ActionItem] = []
-    for raw in _SENTENCES.split(text):
-        sentence = " ".join(raw.split())
+    for i, sentence in enumerate(sentences):
         if len(sentence) < 8 or NOT_FOR_ME.search(sentence) or not REQUEST.search(sentence):
             continue
         due, phrase = resolve_deadline(sentence, base)
+        if due is None and i + 1 < len(sentences):
+            # Only the very next sentence, and only if it talks about a deadline:
+            # "...approve it? Finance needs it by Thursday." counts,
+            # "...send the draft? Separately, the conference is on Friday." does not.
+            follow = sentences[i + 1]
+            if DEADLINE_CUE.search(follow) and not REQUEST.search(follow):
+                due, phrase = resolve_deadline(follow, base)
         items.append(ActionItem(sentence, due, phrase))
-    # A deadline stated in a neighbouring sentence ("...approve it. Finance needs it by Thursday.")
-    if items and all(i.due is None for i in items):
-        due, phrase = resolve_deadline(text, base)
-        if due:
-            items[0] = ActionItem(items[0].text, due, phrase)
     return items

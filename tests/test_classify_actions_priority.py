@@ -132,3 +132,21 @@ def test_llm_summary_and_fallbacks():
 def test_llm_url_must_be_local():
     with pytest.raises(ValueError, match="local"):
         Summarizer(model="m", url="https://api.example.com/api/generate")
+
+
+def test_unrelated_later_date_is_not_attached_to_a_request():
+    items = extract("Could you send the draft? Separately, the conference is on Friday.", MON)
+    assert len(items) == 1 and items[0].due is None
+
+
+def test_old_backlog_deadline_is_overdue_not_imminent():
+    from triage.mail import parse
+    from triage.pipeline import triage_many
+
+    raw = (
+        b"From: Priya <priya@acme-corp.com>\r\nTo: me@acme-corp.com\r\nSubject: Report\r\n"
+        b"Date: Mon, 03 Aug 2020 09:00:00 +0000\r\n\r\nCould you send the report by tomorrow?"
+    )
+    (result,) = triage_many([parse(raw)], Classifier.default())  # default reference: the triage date
+    assert result.actions[0]["due"] == "2020-08-04"  # resolved relative to when it was sent
+    assert any("deadline passed" in r for r in result.priority_reasons)
