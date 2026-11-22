@@ -1,0 +1,15 @@
+From: Priya Nair <priya@acme-corp.com>
+To: you@example.com
+Subject: Sign-off needed on the vendor budget
+Date: Mon, 24 Nov 2026 10:05:00 +0530
+Message-ID: <b2@acme-corp.com>
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=acme-corp.com; dkim=pass; dmarc=pass
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hi,
+
+Could you review the vendor budget sheet and approve it by Wednesday? Procurement cannot raise the purchase order until then.
+
+Thanks,
+Priya
