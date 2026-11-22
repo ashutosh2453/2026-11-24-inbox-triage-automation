@@ -1,0 +1,10 @@
+# Rules run top to bottom. Flags accumulate; the first matching move wins.
+rules:
+  - when: {phishing: ">= 0.7"}
+    do: {move: Quarantine, flag: true}
+  - when: {category: [newsletter, promotion]}
+    do: {move: Later}
+  - when: {from_domain: [acme-corp.com]}
+    do: {flag: true}
+  - when: {priority: ">= 0.75"}
+    do: {flag: true}
