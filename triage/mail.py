@@ -8,6 +8,7 @@ kept with its visible text, because a mismatch between the two is a phishing sig
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from email import policy
@@ -109,13 +110,28 @@ _URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
 _AUTH_RE = re.compile(r"\b(spf|dkim|dmarc)=(\w+)", re.I)
 
 
-def parse_auth_results(values: list[str]) -> dict[str, str]:
-    """First verdict per mechanism from Authentication-Results headers."""
+def parse_auth_results(values: list[str], trusted_ids: set[str] | None = None) -> dict[str, str]:
+    """SPF/DKIM/DMARC verdicts from Authentication-Results headers we can trust.
+
+    Anyone can put an Authentication-Results header in a message they send, so per
+    RFC 8601 only headers added by our own receiving server count. Receiving servers
+    prepend, so without a configured authserv-id only the topmost header is used; with
+    ``trusted_ids`` (env ``TRIAGE_AUTHSERV_ID``) only headers naming that server are.
+    """
+    if trusted_ids:
+        values = [v for v in values if v.split(";", 1)[0].strip().lower() in trusted_ids]
+    else:
+        values = values[:1]
     out: dict[str, str] = {}
     for value in values:
         for mech, verdict in _AUTH_RE.findall(value):
             out.setdefault(mech.lower(), verdict.lower())
     return out
+
+
+def _trusted_authserv_ids() -> set[str] | None:
+    ids = {part.strip().lower() for part in os.environ.get("TRIAGE_AUTHSERV_ID", "").split(",") if part.strip()}
+    return ids or None
 
 
 def parse(raw: bytes, uid: int | None = None) -> Mail:
@@ -156,9 +172,15 @@ def parse(raw: bytes, uid: int | None = None) -> Mail:
         html_text += text + "\n"
         links += found
     text = "\n".join(plain).strip() or html_text.strip()
-    if not html:
-        urls = [u.rstrip(".,;:!?") for u in _URL_RE.findall(text)]  # sentence punctuation is not part of a URL
-        links = [Link(u, u) for u in urls]
+    # Raw URLs from every text/plain part too: in multipart/alternative a sender can put a
+    # different (malicious) link in the plain part than in the HTML part.
+    known = {link.href for link in links}
+    for chunk in plain:
+        for url in _URL_RE.findall(chunk):
+            url = url.rstrip(".,;:!?")  # sentence punctuation is not part of a URL
+            if url not in known:
+                links.append(Link(url, url))
+                known.add(url)
 
     return Mail(
         message_id=str(msg.get("Message-ID", "")).strip(),
@@ -172,7 +194,7 @@ def parse(raw: bytes, uid: int | None = None) -> Mail:
         text=text[:MAX_BODY_CHARS],
         links=links,
         attachments=attachments,
-        auth=parse_auth_results([str(v) for v in msg.get_all("Authentication-Results", [])]),
+        auth=parse_auth_results([str(v) for v in msg.get_all("Authentication-Results", [])], _trusted_authserv_ids()),
         list_unsubscribe=bool(msg.get("List-Unsubscribe")),
         auto_submitted=str(msg.get("Auto-Submitted", "no")).lower() not in ("", "no")
         or str(msg.get("Precedence", "")).lower() in ("bulk", "auto_reply", "list"),

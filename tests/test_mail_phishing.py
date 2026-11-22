@@ -58,6 +58,31 @@ def test_html_to_text_and_auth_parsing():
     assert parse_auth_results(["mx; spf=softfail; DKIM=pass", "spf=pass"]) == {"spf": "softfail", "dkim": "pass"}
 
 
+def test_forged_authentication_results_are_ignored(monkeypatch):
+    ours = "mx.example.com; spf=fail smtp.mailfrom=evil.example"
+    forged = "mx.example.com; spf=pass; dkim=pass"
+    # Our server prepends its header, so a forged one sits below it and is ignored.
+    assert parse_auth_results([ours, forged]) == {"spf": "fail"}
+    # With a trusted authserv-id, headers naming any other server are ignored wherever they are.
+    assert parse_auth_results(["evil; spf=pass", ours], {"mx.example.com"}) == {"spf": "fail"}
+    raw = (
+        f"Authentication-Results: {ours}\r\nAuthentication-Results: {forged}\r\nFrom: a@evil.example\r\n\r\nhi"
+    ).encode()
+    assert parse(raw).auth == {"spf": "fail"}
+    monkeypatch.setenv("TRIAGE_AUTHSERV_ID", "other.example")
+    assert parse(raw).auth == {}
+
+
+def test_plain_text_urls_are_kept_alongside_html_links():
+    msg = EmailMessage()
+    msg["From"] = "a@shop.example"
+    msg.set_content("Log in at http://185.243.115.7/login now")
+    msg.add_alternative("<p><a href='https://shop.example/account'>Your account</a></p>", subtype="html")
+    mail = parse(msg.as_bytes())
+    assert {link.href for link in mail.links} == {"https://shop.example/account", "http://185.243.115.7/login"}
+    assert "ip-link" in {s.name for s in assess(mail).signals}
+
+
 def test_example_phish_is_caught_with_reasons():
     v = assess(eml("phish-paypal.eml"))
     assert v.label == "phishing" and v.score >= 0.95
